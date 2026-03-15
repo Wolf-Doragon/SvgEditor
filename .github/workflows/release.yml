@@ -1,11 +1,15 @@
-name: Build & Release
+name: Build and Release (Windows)
 
 on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
     inputs:
       version:
         description: "Release version (例: v1.0.0)"
-        required: true
+        required: false
         type: string
 
 jobs:
@@ -30,18 +34,33 @@ jobs:
     - name: Publish
       run: dotnet publish -c Release -o publish
 
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-build
+        path: publish/
+
+  release:
+    needs: build
+    if: ${{ github.event.inputs.version != '' }}
+    runs-on: windows-latest
+
+    steps:
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: app-build
+        path: publish
+
     - name: Zip artifacts
       run: |
         powershell Compress-Archive -Path publish\* -DestinationPath app.zip
 
-    - name: Create Release
-      id: create_release
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.event.inputs.version }}
         name: Release ${{ github.event.inputs.version }}
-        draft: false
-        prerelease: false
         files: app.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
